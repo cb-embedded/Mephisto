@@ -108,7 +108,10 @@ def example_3_with_cpu():
     audio = AudioOutput(ay, sample_rate=44100)
     
     # Load ROM
-    with open("../sound_cpu_8051.bin", 'rb') as f:
+    rom_file = os.path.join(os.path.dirname(__file__), "..", "sound_cpu_8051.bin")
+    if not os.path.exists(rom_file):
+        rom_file = "sound_cpu_8051.bin"
+    with open(rom_file, 'rb') as f:
         rom_data = f.read()
     cpu.load_rom(rom_data)
     cpu.reset()

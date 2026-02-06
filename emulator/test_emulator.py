@@ -23,7 +23,10 @@ def test_cpu():
     
     # Test 1: Load ROM
     print("\n1. Loading ROM...")
-    rom_file = "../sound_cpu_8051.bin"
+    # Find ROM file
+    rom_file = os.path.join(os.path.dirname(__file__), "..", "sound_cpu_8051.bin")
+    if not os.path.exists(rom_file):
+        rom_file = "sound_cpu_8051.bin"
     with open(rom_file, 'rb') as f:
         rom_data = f.read()
     cpu.load_rom(rom_data)
@@ -107,7 +110,9 @@ def test_integration():
     ay = AY3910Audio()
     
     # Load ROM
-    rom_file = "../sound_cpu_8051.bin"
+    rom_file = os.path.join(os.path.dirname(__file__), "..", "sound_cpu_8051.bin")
+    if not os.path.exists(rom_file):
+        rom_file = "sound_cpu_8051.bin"
     with open(rom_file, 'rb') as f:
         rom_data = f.read()
     cpu.load_rom(rom_data)
