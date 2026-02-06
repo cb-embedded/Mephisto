@@ -212,7 +212,7 @@ class MelodyPlayer {
         // Check if all notes have the same duration value
         const uniqueDurations = new Set(notes.map(n => n.duration));
         
-        // If there are 2+ unique durations with reasonable variety, keep them as-is
+        // If there are 3+ unique durations with reasonable variety, keep them as-is
         if (uniqueDurations.size > 2) {
             return; // Good variety, use as-is
         }
@@ -222,7 +222,8 @@ class MelodyPlayer {
         const durValues = Array.from(uniqueDurations);
         const avgDur = durValues.reduce((a, b) => a + b, 0) / durValues.length;
         
-        // Check if durations are in the "separator byte" range (0x20-0x25 = 32-37)
+        // Check if durations are in the "separator byte" range (30-40 decimal)
+        // Common separator values: 0x21 (33), 0x22 (34), 0x24 (36), 0x28 (40)
         // These are likely format markers, not musical durations
         const isSeparatorRange = durValues.every(d => d >= 30 && d <= 40);
         
