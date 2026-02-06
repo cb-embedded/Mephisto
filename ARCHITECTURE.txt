@@ -1,0 +1,301 @@
+================================================================================
+8051 SOUND CPU ARCHITECTURE DIAGRAM
+================================================================================
+
+SYSTEM OVERVIEW:
+----------------
+
+    ┌─────────────┐      UART       ┌──────────────┐      P1/P3     ┌──────────────┐
+    │   Host/PC   │ ─────────────> │ 8051 MCU     │ ─────────────> │  AY-3-8910   │
+    │             │   (commands)    │ sound_cpu    │   (control)    │  Sound Chip  │
+    └─────────────┘                 └──────────────┘                 └──────────────┘
+                                           │                               │
+                                           │                               │
+                                           └───────────────────────────────┘
+                                                    Audio Output
+
+
+UART COMMAND FLOW:
+------------------
+
+    Byte Stream:  B5  A4  00  DD  01  0F  B0
+                  │   │   │   │   │   │   │
+                  └───┴───┴───┴───┴───┴───┴──> UART Receiver (SBUF 0x99)
+                                                      │
+                                    ┌─────────────────┴────────────────┐
+                                    │   UART Interrupt (0x0445)        │
+                                    │   - Check RI flag (bit 0x99)     │
+                                    └─────────────────┬────────────────┘
+                                                      │
+                                    ┌─────────────────▼────────────────┐
+                                    │   State Machine (3 states)       │
+                                    │   - State 0: Wait for start      │
+                                    │   - State 1: Get command         │
+                                    │   - State 2: Get data bytes      │
+                                    └─────────────────┬────────────────┘
+                                                      │
+                                                  Set bit_04
+                                                  (data ready)
+                                                      │
+                                    ┌─────────────────▼────────────────┐
+                                    │   Main Loop (0x009E)             │
+                                    │   - Poll bit_04 flag             │
+                                    │   - Read buffer at 0x0050        │
+                                    └─────────────────┬────────────────┘
+                                                      │
+                                    ┌─────────────────▼────────────────┐
+                                    │   Command Dispatcher             │
+                                    │   - 0xA0: Status                 │
+                                    │   - 0xA2: Freq Low               │
+                                    │   - 0xA3: Freq High              │
+                                    │   - 0xA4: Play Note              │
+                                    │   - 0xA6: Stop                   │
+                                    └─────────────────┬────────────────┘
+                                                      │
+                                    ┌─────────────────▼────────────────┐
+                                    │   AY Control Functions           │
+                                    │   - 0x05A6: Register select      │
+                                    │   - 0x05E6: Register write       │
+                                    └─────────────────┬────────────────┘
+                                                      │
+                                                   Port P1
+                                                      │
+                                    ┌─────────────────▼────────────────┐
+                                    │   AY-3-8910 PSG Chip             │
+                                    │   - 3 Channels (A, B, C)         │
+                                    │   - 16 Registers (R0-R15)        │
+                                    └──────────────────────────────────┘
+
+
+STATE MACHINE DETAIL:
+---------------------
+
+    STATE 0: Wait for Start
+    ┌─────────────────────────────┐
+    │  Scan for 0xB5 or 0xB6      │
+    │  - If match: store marker   │
+    │  - If match: goto STATE 1   │
+    │  - If no match: discard     │
+    └────────────┬────────────────┘
+                 │ (start marker found)
+                 ▼
+    STATE 1: Receive Command
+    ┌─────────────────────────────┐
+    │  Read next byte             │
+    │  - Store at 0x0050          │
+    │  - Set counter at 0x004E    │
+    │  - Goto STATE 2             │
+    └────────────┬────────────────┘
+                 │ (command received)
+                 ▼
+    STATE 2: Receive Data
+    ┌─────────────────────────────┐
+    │  Read bytes into buffer     │
+    │  - Store at 0x0051, 0x0052..│
+    │  - Decrement counter        │
+    │  - Check for 0xB0 marker    │
+    └────────────┬────────────────┘
+                 │ (0xB0 received)
+                 ▼
+    ┌─────────────────────────────┐
+    │  Set bit_04 flag            │
+    │  Return to STATE 0          │
+    └─────────────────────────────┘
+
+
+PORT P1 TO AY-3-8910 INTERFACE:
+--------------------------------
+
+    8051 Port P1 (0x90)
+           │
+           │ 8-bit Data/Address Bus
+           │
+    ┌──────▼──────────────────────┐
+    │   AY-3-8910 Data Bus        │
+    │   DA0-DA7                   │
+    └─────────────────────────────┘
+           │
+           │ Control Signals (Port P3):
+           │ - P3.0 (BC1)
+           │ - P3.4 (BDIR)
+           │ - P3.5 (BC2)
+           │
+    ┌──────▼──────────────────────┐
+    │   Control Logic             │
+    │   BDIR BC2 BC1 | Function   │
+    │   ──────────────────────     │
+    │    0   1   0   | Inactive    │
+    │    0   1   1   | Read PSG    │
+    │    1   1   0   | Write PSG   │
+    │    1   1   1   | Latch Addr  │
+    └─────────────────────────────┘
+
+
+AY-3-8910 REGISTER MAP:
+-----------------------
+
+    ┌────────┬─────────────────────────────┐
+    │  R0-R1 │ Channel A Tone Period       │ ◄── 12-bit frequency
+    ├────────┼─────────────────────────────┤
+    │  R2-R3 │ Channel B Tone Period       │ ◄── 12-bit frequency
+    ├────────┼─────────────────────────────┤
+    │  R4-R5 │ Channel C Tone Period       │ ◄── 12-bit frequency
+    ├────────┼─────────────────────────────┤
+    │   R6   │ Noise Period                │
+    ├────────┼─────────────────────────────┤
+    │   R7   │ Mixer Control / I/O Enable  │
+    ├────────┼─────────────────────────────┤
+    │   R8   │ Channel A Amplitude         │ ◄── Volume 0-15
+    ├────────┼─────────────────────────────┤
+    │   R9   │ Channel B Amplitude         │ ◄── Volume 0-15
+    ├────────┼─────────────────────────────┤
+    │  R10   │ Channel C Amplitude         │ ◄── Volume 0-15
+    ├────────┼─────────────────────────────┤
+    │ R11-R12│ Envelope Period             │
+    ├────────┼─────────────────────────────┤
+    │  R13   │ Envelope Shape              │
+    ├────────┼─────────────────────────────┤
+    │ R14-R15│ I/O Ports A & B             │
+    └────────┴─────────────────────────────┘
+
+
+MEMORY MAP:
+-----------
+
+    ┌──────────┬─────────────────────────────────┐
+    │ 0x0000   │ Reset Vector → 0x0026           │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x0003   │ EXT0 Vector → 0x061F            │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x000B   │ Timer0 Vector → 0x051D          │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x0023   │ UART Vector → 0x0445 ★          │
+    ├──────────┼─────────────────────────────────┤
+    │   ...    │                                 │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x004B   │ State Machine Counter           │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x004F   │ Start Marker Storage (B5/B6)    │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x0050   │ Command Data Buffer (start)     │
+    ├──────────┼─────────────────────────────────┤
+    │ 0x0072   │ Frequency Data Storage          │
+    └──────────┴─────────────────────────────────┘
+
+    ★ = Critical handler for command reception
+
+
+COMMAND PACKET FORMAT:
+----------------------
+
+    ┌─────┬──────┬────────────┬─────┐
+    │START│ CMD  │   DATA     │ END │
+    └─────┴──────┴────────────┴─────┘
+       │     │         │         │
+       │     │         │         └─ 0xB0 (required)
+       │     │         └─────────── Variable length (0-4+ bytes)
+       │     └───────────────────── Command byte (0xA0-0xA8)
+       └─────────────────────────── 0xB5 or 0xB6 (required)
+
+
+EXAMPLE: Play Middle C on Channel A
+------------------------------------
+
+    Command Bytes:  B5  A4  00  DD  01  0F  B0
+                    │   │   │   │   │   │   │
+                    │   │   │   │   │   │   └─ End Marker
+                    │   │   │   │   │   └───── Amplitude (15)
+                    │   │   │   │   └───────── Freq High (0x01)
+                    │   │   │   └───────────── Freq Low (0xDD)
+                    │   │   └───────────────── Channel (0=A)
+                    │   └───────────────────── Command (0xA4=Note)
+                    └───────────────────────── Start Marker
+
+    Period = 0x01DD = 477 decimal
+    Frequency = 2,000,000 / (16 × 477) ≈ 262 Hz (Middle C)
+
+
+TIMER INTERRUPT FLOW:
+---------------------
+
+    Timer 0 Interrupt (100 Hz?)
+           │
+           ▼
+    ┌─────────────────────────┐
+    │  Save Context (0x051D)  │
+    └────────────┬────────────┘
+                 │
+    ┌────────────▼────────────┐
+    │  Increment Counter      │
+    │  Check if 100 ticks     │
+    └────────────┬────────────┘
+                 │
+    ┌────────────▼────────────┐
+    │  Call AY Update (0x05A6)│
+    │  - Latch register addr  │
+    │  - Write register data  │
+    └────────────┬────────────┘
+                 │
+    ┌────────────▼────────────┐
+    │  Call Control (0x05E6)  │
+    │  - Set control signals  │
+    │  - Pulse write enable   │
+    └────────────┬────────────┘
+                 │
+                 ▼
+           Restore Context
+                 │
+                RETI
+
+
+EMULATION ARCHITECTURE:
+-----------------------
+
+    ┌─────────────────────────────────────────────────┐
+    │         Python Emulator (emulator_reference.py) │
+    └──────────────────┬──────────────────────────────┘
+                       │
+         ┌─────────────┴─────────────┐
+         │                           │
+         ▼                           ▼
+    ┌─────────────┐           ┌────────────────┐
+    │ Sound8051   │           │  AY3810        │
+    │ Emulator    │           │  Emulator      │
+    │             │           │                │
+    │ - UART RX   │───────────>│ - Registers   │
+    │ - State Mc  │   write    │ - Freq Calc   │
+    │ - Commands  │   regs     │ - 3 Channels  │
+    └─────────────┘           └────────────────┘
+         ▲                           │
+         │                           │
+         │ send bytes                │ audio state
+         │                           ▼
+    ┌────┴─────────────────────────────────────────┐
+    │         User Application / Test Code         │
+    └──────────────────────────────────────────────┘
+
+
+KEY ADDRESSES:
+--------------
+
+    Function                    Address     Description
+    ────────────────────────────────────────────────────────────
+    Reset/Init                  0x0026      System initialization
+    Main Loop                   0x009E      Command processing loop
+    UART Interrupt Handler      0x0445      ★ Command reception
+    UART State Dispatch         0x0486      State jump table
+    UART State 0 Handler        0x048C      Wait for start marker
+    UART State 1 Handler        0x04BB      Receive command
+    UART State 2 Handler        0x04DE      Receive data bytes
+    Command A0 Handler          ~0x00B6     Status command
+    Command A2 Handler          0x0102      Frequency low
+    Command A3 Handler          0x010D      Frequency high
+    Command A4 Handler          0x0118      Play note
+    Command A6 Handler          0x0144      Stop all
+    Timer Interrupt Handler     0x051D      Periodic updates
+    AY Register Latch           0x05A6      Latch register address
+    AY Register Write           0x05E6      Write register data
+
+    ★ = Most critical function for command protocol
+
+================================================================================
