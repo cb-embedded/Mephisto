@@ -303,7 +303,7 @@
         <div class="info-section">
             <h2>ℹ️ About</h2>
             <p>This player uses the Web Audio API to synthesize sounds based on the music data found in the 8051 firmware at addresses <code>0x2D00-0x3200</code>.</p>
-            <p style="margin-top: 10px;">Music format: <code>[Note_ID] [Duration] [Command]</code> where Note_ID is ASCII-like (0x41=A, 0x44=D, etc.)</p>
+            <p style="margin-top: 10px;">Music format: Two formats are used: <code>[Command] [Note] [Duration]</code> or <code>[Note] [Duration] [Command]</code> where Command bytes are 0x68-0x72 (channel markers), Note is ASCII-like (0x31-0x51), and Duration is in time units.</p>
             <p style="margin-top: 10px;">The firmware contains multiple pre-stored melodies that would play on an AY-3-8910 PSG chip.</p>
         </div>
     </div>

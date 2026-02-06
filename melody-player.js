@@ -88,6 +88,12 @@ class MelodyPlayer {
         this.playing = false;
         this.binaryData = null;
         this.speedMultiplier = 1.0;
+        
+        // Constants for melody parsing
+        this.MAX_NOTES = 100;
+        this.MAX_DURATION = 0x80; // Valid duration range: 0x01-0x7F (0x00 and values >= 0x80 are invalid)
+        this.DURATION_TO_MS_FACTOR = 50; // Convert duration units to milliseconds
+        this.CHANNEL_CMDS = new Set([0x68, 0x69, 0x70, 0x71, 0x72]); // Channel/command marker bytes
     }
 
     async init() {
@@ -145,32 +151,50 @@ class MelodyPlayer {
     parseMelody(startAddr, length) {
         const notes = [];
         
-        for (let i = 0; i < length; i += 3) {
+        let i = 0;
+        while (i < length && notes.length < this.MAX_NOTES) {
             const addr = startAddr + i;
             if (addr + 2 >= this.binaryData.length) break;
 
-            const noteId = this.binaryData[addr];
-            const duration = this.binaryData[addr + 1];
-            const command = this.binaryData[addr + 2];
+            const b1 = this.binaryData[addr];
+            const b2 = this.binaryData[addr + 1];
+            const b3 = this.binaryData[addr + 2];
 
-            // Stop if we hit end marker or invalid data
-            if (noteId === 0xFF || (noteId === 0 && duration === 0 && command === 0)) {
-                break;
+            let noteId, duration, command;
+
+            // Smart format detection: Check if b1 or b3 is a channel command
+            if (this.CHANNEL_CMDS.has(b1)) {
+                // Format: [Command][Note][Duration]
+                command = b1;
+                noteId = b2;
+                duration = b3;
+                i += 3;
+            } else if (this.CHANNEL_CMDS.has(b3)) {
+                // Format: [Note][Duration][Command]
+                noteId = b1;
+                duration = b2;
+                command = b3;
+                i += 3;
+            } else {
+                // Stop if we hit end markers or padding
+                if (b1 === 0xFF || (b1 === 0 && b2 === 0)) {
+                    break;
+                }
+                // Skip byte and try next position (misalignment or header)
+                i += 1;
+                continue;
             }
 
-            // Skip if it looks like non-music data
-            if (duration === 0 || duration > 0x80) continue;
-
-            notes.push({
-                noteId: noteId,
-                duration: duration,
-                command: command,
-                frequency: this.noteIdToFrequency(noteId),
-                durationMs: duration * 50 // Convert to milliseconds (approximate)
-            });
-
-            // Stop at reasonable length
-            if (notes.length > 100) break;
+            // Validate and add note
+            if (duration > 0 && duration < this.MAX_DURATION) {
+                notes.push({
+                    noteId: noteId,
+                    duration: duration,
+                    command: command,
+                    frequency: this.noteIdToFrequency(noteId),
+                    durationMs: duration * this.DURATION_TO_MS_FACTOR
+                });
+            }
         }
 
         return notes;
@@ -178,31 +202,55 @@ class MelodyPlayer {
 
     noteIdToFrequency(noteId) {
         // Map note IDs to frequencies
-        // Based on analysis: 0x31-0x4C are note values
+        // The firmware uses note IDs in two ranges:
+        // - 0x31-0x3C: Lower octave (12 chromatic notes from C3 to B3)
+        // - 0x41-0x51: Higher octave (17 chromatic notes from C4 to E5)
+        // Note: The hex values don't directly correspond to musical note names
+        //       (e.g., 0x41 maps to C4, not A)
+        
         const noteMap = {
-            // Octave markers
-            0x31: 130.81, 0x32: 138.59, 0x33: 146.83, 0x34: 155.56,
-            0x35: 164.81, 0x36: 174.61, 0x37: 185.00, 0x38: 196.00,
-            0x39: 207.65, 0x3A: 220.00, 0x3B: 233.08, 0x3C: 246.94,
+            // Lower octave (0x31-0x3C)
+            0x31: 130.81, // C3
+            0x32: 138.59, // C#3
+            0x33: 146.83, // D3
+            0x34: 155.56, // D#3
+            0x35: 164.81, // E3
+            0x36: 174.61, // F3
+            0x37: 185.00, // F#3
+            0x38: 196.00, // G3
+            0x39: 207.65, // G#3
+            0x3A: 220.00, // A3
+            0x3B: 233.08, // A#3
+            0x3C: 246.94, // B3
             
-            // Note letters (approximate middle octave)
-            0x41: 220.00, // A
-            0x42: 246.94, // B
-            0x43: 261.63, // C
-            0x44: 293.66, // D
-            0x45: 329.63, // E
-            0x46: 349.23, // F
-            0x47: 392.00, // G
-            0x48: 440.00, // H (A)
-            0x49: 493.88, // I (B)
-            0x4A: 523.25, // J (C)
-            0x4B: 587.33, // K (D)
-            0x4C: 659.25, // L (E)
+            // Middle octave (0x41-0x51) - ASCII 'A'-'Q'
+            0x41: 261.63, // C4 (Middle C)
+            0x42: 277.18, // C#4
+            0x43: 293.66, // D4
+            0x44: 311.13, // D#4
+            0x45: 329.63, // E4
+            0x46: 349.23, // F4
+            0x47: 369.99, // F#4
+            0x48: 392.00, // G4
+            0x49: 415.30, // G#4
+            0x4A: 440.00, // A4 (Concert pitch)
+            0x4B: 466.16, // A#4
+            0x4C: 493.88, // B4
+            0x4D: 523.25, // C5
+            0x4E: 554.37, // C#5
+            0x4F: 587.33, // D5
+            0x50: 622.25, // D#5
+            0x51: 659.25, // E5
             
-            0x00: 0 // Rest
+            0x00: 0 // Rest/silence
         };
 
-        return noteMap[noteId] || 440; // Default to A440
+        const frequency = noteMap[noteId];
+        if (frequency === undefined) {
+            console.warn(`Unknown note ID: 0x${noteId.toString(16).toUpperCase().padStart(2, '0')}`);
+            return 440; // Default to A4 if unknown
+        }
+        return frequency;
     }
 
     setupUI() {
