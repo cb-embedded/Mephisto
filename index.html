@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8051 Sound CPU - Melody Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .player-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .melody-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .melody-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .melody-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .melody-button:active {
+            transform: translateY(0);
+        }
+
+        .melody-button.playing {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-button {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-button:hover {
+            background: #555;
+        }
+
+        .control-button.stop {
+            background: #dc3545;
+        }
+
+        .control-button.stop:hover {
+            background: #c82333;
+        }
+
+        .info-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+        }
+
+        .info-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .status {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .channel-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .channel {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .channel h3 {
+            font-size: 0.9em;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .channel-data {
+            font-size: 0.8em;
+            color: #666;
+            font-family: 'Courier New', monospace;
+        }
+
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 8051 Sound CPU - Melody Player</h1>
+            <p class="subtitle">Reverse-engineered AY-3-8910 music playback from sound_cpu_8051.bin</p>
+        </header>
+
+        <div class="player-section">
+            <h2>📻 Melody Player</h2>
+            <p>Click a button to play a melody extracted from the 8051 firmware:</p>
+            
+            <div class="melody-grid" id="melodyGrid">
+                <div class="loading">Loading melodies...</div>
+            </div>
+
+            <div class="control-buttons">
+                <button class="control-button stop" id="stopButton">⏹ Stop All</button>
+                <button class="control-button" id="testNoteButton">🎹 Test Note (A440)</button>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h2>📊 Status & Information</h2>
+            <div class="status" id="statusDisplay">
+                Ready. Load a melody to begin...
+            </div>
+
+            <div class="channel-info" id="channelInfo">
+                <div class="channel">
+                    <h3>Channel A</h3>
+                    <div class="channel-data">Idle</div>
+                </div>
+                <div class="channel">
+                    <h3>Channel B</h3>
+                    <div class="channel-data">Idle</div>
+                </div>
+                <div class="channel">
+                    <h3>Channel C</h3>
+                    <div class="channel-data">Idle</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h2>ℹ️ About</h2>
+            <p>This player uses the Web Audio API to synthesize sounds based on the music data found in the 8051 firmware at addresses <code>0x2D00-0x3200</code>.</p>
+            <p style="margin-top: 10px;">Music format: <code>[Note_ID] [Duration] [Command]</code> where Note_ID is ASCII-like (0x41=A, 0x44=D, etc.)</p>
+            <p style="margin-top: 10px;">The firmware contains multiple pre-stored melodies that would play on an AY-3-8910 PSG chip.</p>
+        </div>
+    </div>
+
+    <script src="melody-player.js"></script>
+</body>
+</html>
