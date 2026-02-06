@@ -8,10 +8,24 @@ This repository contains the complete reverse engineering analysis of an 8051 mi
 
 ## Quick Start
 
-### Test the Emulator
+### 🔊 Play Real-Time Music (NEW!)
 
 ```bash
-# Run the reference emulator with demo
+# Run the complete emulator with actual audio output
+cd emulator
+python3 demo.py          # Automated demo with melody
+# OR
+python3 main.py          # Interactive mode with stdin input
+```
+
+**Requirements:** `pip install numpy pyaudio`
+
+See `emulator/README.md` for detailed instructions.
+
+### Test the Reference Emulator
+
+```bash
+# Run the high-level reference emulator with demo
 python3 emulator_reference.py
 ```
 
@@ -34,18 +48,20 @@ python3 detailed_analysis.py
 
 ## Files in This Repository
 
-| File | Description |
+| File/Directory | Description |
 |------|-------------|
 | `sound_cpu_8051.bin` | Original 8051 firmware binary |
+| `emulator/` | **🔊 NEW: Complete 8051+AY-3-8910 emulator with real audio** |
 | `COMMAND_PROTOCOL.md` | **⭐ Complete protocol specification** |
 | `REVERSE_ENGINEERING_REPORT.md` | Detailed disassembly with annotations |
-| `emulator_reference.py` | **⭐ Working emulator implementation** |
+| `emulator_reference.py` | **⭐ Working high-level emulator** |
 | `command_generator.py` | **⭐ Command sequence generator** |
 | `analyze_8051.py` | 8051 disassembler and analyzer |
 | `detailed_analysis.py` | Deep analysis of command processing |
 | `annotated_disassembly.py` | Annotated disassembly generator |
 
-**⭐ = Most useful files for implementation**
+**⭐ = Most useful files for implementation**  
+**🔊 = Produces actual audio output**
 
 ## Protocol Summary
 
@@ -280,6 +296,52 @@ You can verify correct implementation by:
 3. Playing a chord should set all three channels simultaneously
 4. Invalid start markers should be ignored
 
+## Real-Time Music Emulator (NEW!)
+
+The `emulator/` directory contains a complete implementation that:
+
+✅ **Runs the actual 8051 firmware** - Executes `sound_cpu_8051.bin` instruction-by-instruction  
+✅ **Emulates AY-3-8910** - Complete sound chip emulation with tone generators  
+✅ **Real audio output** - Generates actual sound you can hear via PyAudio  
+✅ **UART input** - Accepts commands via stdin in hex format  
+✅ **Real-time processing** - CPU execution synchronized with audio generation  
+
+### Quick Demo
+
+```bash
+cd emulator
+pip install numpy pyaudio
+python3 demo.py          # Plays a melody automatically
+python3 main.py          # Interactive mode
+python3 test_emulator.py # Run tests (no audio required)
+```
+
+### What You'll Hear
+
+The demo plays:
+1. C major scale (C D E F G A B C) - one note at a time
+2. C major chord (C-E-G) - three channels simultaneously
+
+### How It Works
+
+```
+                                    ┌──────────────┐
+   stdin (hex) ──> UART ──> ┌──────┤ 8051 CPU     │
+                             │      │ Emulator     │
+                             │      └──────┬───────┘
+                             │             │ Port 1/3
+                             │      ┌──────▼───────┐
+                             │      │ AY-3-8910    │
+                             │      │ Emulator     │
+                             │      └──────┬───────┘
+                             │             │ samples
+                             │      ┌──────▼───────┐
+                             └──────┤ PyAudio      │──> Speakers 🔊
+                                    └──────────────┘
+```
+
+See `emulator/README.md` for complete documentation.
+
 ## License
 
 This is a reverse engineering analysis for educational and compatibility purposes.
@@ -290,4 +352,4 @@ For questions about this reverse engineering work, please open an issue.
 
 ---
 
-**Status**: ✅ Complete - Protocol fully documented and emulator verified working
+**Status**: ✅ Complete - Protocol fully documented, emulators verified working, real audio output functional
