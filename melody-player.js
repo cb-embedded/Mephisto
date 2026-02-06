@@ -91,9 +91,9 @@ class MelodyPlayer {
         
         // Constants for melody parsing
         this.MAX_NOTES = 100;
-        this.MAX_DURATION = 0x80; // Maximum valid duration value
+        this.MAX_DURATION = 0x80; // Maximum valid duration value (values >= 0x80 are invalid)
         this.DURATION_TO_MS_FACTOR = 50; // Convert duration units to milliseconds
-        this.CHANNEL_CMDS = [0x68, 0x69, 0x70, 0x71, 0x72]; // Channel/command marker bytes
+        this.CHANNEL_CMDS = new Set([0x68, 0x69, 0x70, 0x71, 0x72]); // Channel/command marker bytes
     }
 
     async init() {
@@ -163,13 +163,13 @@ class MelodyPlayer {
             let noteId, duration, command;
 
             // Smart format detection: Check if b1 or b3 is a channel command
-            if (this.CHANNEL_CMDS.includes(b1)) {
+            if (this.CHANNEL_CMDS.has(b1)) {
                 // Format: [Command][Note][Duration]
                 command = b1;
                 noteId = b2;
                 duration = b3;
                 i += 3;
-            } else if (this.CHANNEL_CMDS.includes(b3)) {
+            } else if (this.CHANNEL_CMDS.has(b3)) {
                 // Format: [Note][Duration][Command]
                 noteId = b1;
                 duration = b2;
