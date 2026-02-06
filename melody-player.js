@@ -199,7 +199,68 @@ class MelodyPlayer {
             }
         }
 
+        // Post-process: Detect if all notes have the same duration (separator byte)
+        // and assign contextual durations instead
+        this.applyContextualDurations(notes);
+
         return notes;
+    }
+
+    applyContextualDurations(notes) {
+        if (notes.length === 0) return;
+
+        // Check if all notes have the same duration value
+        const uniqueDurations = new Set(notes.map(n => n.duration));
+        
+        // If there are 3+ unique durations with reasonable variety, keep them as-is
+        if (uniqueDurations.size > 2) {
+            return; // Good variety, use as-is
+        }
+        
+        // If only 1 or 2 unique values and they're close together (separator bytes),
+        // apply contextual duration based on musical patterns
+        const durValues = Array.from(uniqueDurations);
+        const avgDur = durValues.reduce((a, b) => a + b, 0) / durValues.length;
+        
+        // Check if durations are in the "separator byte" range (30-40 decimal)
+        // Common separator values: 0x21 (33), 0x22 (34), 0x24 (36), 0x28 (40)
+        // These are likely format markers, not musical durations
+        const isSeparatorRange = durValues.every(d => d >= 30 && d <= 40);
+        
+        if (uniqueDurations.size <= 2 && isSeparatorRange) {
+            // Apply musical context-based durations
+            // Pattern: Rests get shorter duration, consecutive same notes get varying durations
+            for (let i = 0; i < notes.length; i++) {
+                const note = notes[i];
+                const isRest = (note.noteId === 0x00);
+                const prevNote = i > 0 ? notes[i - 1] : null;
+                const nextNote = i < notes.length - 1 ? notes[i + 1] : null;
+                
+                // Determine contextual duration
+                let contextDuration;
+                
+                if (isRest) {
+                    // Rests are shorter (staccato effect)
+                    contextDuration = 15; // 150ms
+                } else if (prevNote && prevNote.noteId === note.noteId) {
+                    // Repeated note - make it a bit longer
+                    contextDuration = 40; // 400ms
+                } else if (nextNote && nextNote.noteId === 0x00) {
+                    // Note followed by rest - normal duration
+                    contextDuration = 30; // 300ms
+                } else if (nextNote && nextNote.noteId === note.noteId) {
+                    // Note followed by same note - shorter for separation
+                    contextDuration = 25; // 250ms
+                } else {
+                    // Default note duration
+                    contextDuration = 35; // 350ms
+                }
+                
+                // Update the note's duration
+                note.duration = contextDuration;
+                note.durationMs = contextDuration * this.DURATION_TO_MS_FACTOR;
+            }
+        }
     }
 
     noteIdToFrequency(noteId) {
