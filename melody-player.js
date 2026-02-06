@@ -92,7 +92,9 @@ class MelodyPlayer {
         // Constants for melody parsing
         this.MAX_NOTES = 100;
         this.MAX_DURATION = 0x80; // Valid duration range: 0x01-0x7F (0x00 and values >= 0x80 are invalid)
-        this.DURATION_TO_MS_FACTOR = 50; // Convert duration units to milliseconds
+        this.DURATION_TO_MS_FACTOR = 10; // Convert duration units to milliseconds (reduced from 50 for faster playback)
+        this.NOTE_GAP_FACTOR = 0.2; // Percentage of note duration to use as gap between notes (20% gap)
+        this.MIN_NOTE_DURATION_MS = 10; // Minimum note duration in milliseconds to ensure audibility at high speeds
         this.CHANNEL_CMDS = new Set([0x68, 0x69, 0x70, 0x71, 0x72]); // Channel/command marker bytes
     }
 
@@ -309,13 +311,23 @@ class MelodyPlayer {
 
             // Calculate adjusted duration based on speed multiplier
             const adjustedDuration = note.durationMs / this.speedMultiplier;
+            
+            // Calculate note play time and gap time for spacing
+            // Gap is capped to: 1) be non-negative, 2) not exceed NOTE_GAP_FACTOR percent, 
+            // and 3) leave at least MIN_NOTE_DURATION_MS for the note
+            const gapDuration = Math.max(0, Math.min(
+                adjustedDuration * this.NOTE_GAP_FACTOR,
+                adjustedDuration - this.MIN_NOTE_DURATION_MS
+            ));
+            // Note duration is guaranteed to be at least MIN_NOTE_DURATION_MS
+            const noteDuration = Math.max(this.MIN_NOTE_DURATION_MS, adjustedDuration - gapDuration);
 
             if (note.frequency > 0) {
-                // Play note with moderate amplitude
-                this.synth.playNote(channel, note.frequency, 12, adjustedDuration);
+                // Play note with moderate amplitude, but shorter to create spacing
+                this.synth.playNote(channel, note.frequency, 12, noteDuration);
             }
 
-            // Wait for note duration
+            // Wait for full duration (note + gap)
             await this.sleep(adjustedDuration);
         }
 
