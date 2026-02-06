@@ -373,7 +373,10 @@ class CPU8051:
         elif opcode == 0x24:
             data = self.fetch_byte()
             result = self.acc + data
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F)) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -382,7 +385,10 @@ class CPU8051:
             addr = self.fetch_byte()
             data = self.read_direct(addr)
             result = self.acc + data
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F)) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -392,15 +398,22 @@ class CPU8051:
             addr = self.iram[r]
             data = self.iram[addr]
             result = self.acc + data
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F)) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
         # ADD A, R0-R7
         elif 0x28 <= opcode <= 0x2F:
             r = opcode & 0x07
-            result = self.acc + self.iram[r]
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            data = self.iram[r]
+            result = self.acc + data
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F)) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -438,9 +451,12 @@ class CPU8051:
         # ADDC A, #data
         elif opcode == 0x34:
             data = self.fetch_byte()
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc + data + carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc + data + old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F) + old_carry) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -448,9 +464,12 @@ class CPU8051:
         elif opcode == 0x35:
             addr = self.fetch_byte()
             data = self.read_direct(addr)
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc + data + carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc + data + old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6)
+            carry = (result >> 8) & 0x01
+            aux_carry = ((self.acc & 0x0F) + (data & 0x0F) + old_carry) > 0x0F
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -749,9 +768,12 @@ class CPU8051:
         # SUBB A, #data
         elif opcode == 0x94:
             data = self.fetch_byte()
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc - data - carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc - data - old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6) for borrow
+            carry = 1 if result < 0 else 0
+            aux_carry = 1 if (self.acc & 0x0F) < ((data & 0x0F) + old_carry) else 0
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -759,9 +781,12 @@ class CPU8051:
         elif opcode == 0x95:
             addr = self.fetch_byte()
             data = self.read_direct(addr)
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc - data - carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc - data - old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6) for borrow
+            carry = 1 if result < 0 else 0
+            aux_carry = 1 if (self.acc & 0x0F) < ((data & 0x0F) + old_carry) else 0
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
@@ -770,18 +795,25 @@ class CPU8051:
             r = opcode & 0x01
             addr = self.iram[r]
             data = self.iram[addr]
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc - data - carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc - data - old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6) for borrow
+            carry = 1 if result < 0 else 0
+            aux_carry = 1 if (self.acc & 0x0F) < ((data & 0x0F) + old_carry) else 0
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
         # SUBB A, R0-R7
         elif 0x98 <= opcode <= 0x9F:
             r = opcode & 0x07
-            carry = (self.psw >> 7) & 0x01
-            result = self.acc - self.iram[r] - carry
-            self.psw = (self.psw & 0x3F) | ((result >> 1) & 0x80) | ((result >> 8) & 0x80)
+            data = self.iram[r]
+            old_carry = (self.psw >> 7) & 0x01
+            result = self.acc - data - old_carry
+            # Set carry (bit 7) and auxiliary carry (bit 6) for borrow
+            carry = 1 if result < 0 else 0
+            aux_carry = 1 if (self.acc & 0x0F) < ((data & 0x0F) + old_carry) else 0
+            self.psw = (self.psw & 0x3B) | (carry << 7) | (aux_carry << 6)
             self.acc = result & 0xFF
             self.cycle_count += 1
             
