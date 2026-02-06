@@ -91,7 +91,7 @@ class MelodyPlayer {
         
         // Constants for melody parsing
         this.MAX_NOTES = 100;
-        this.MAX_DURATION = 0x80; // Maximum valid duration value (values >= 0x80 are invalid)
+        this.MAX_DURATION = 0x80; // Values < 0x80 are valid (0x01-0x7F)
         this.DURATION_TO_MS_FACTOR = 50; // Convert duration units to milliseconds
         this.CHANNEL_CMDS = new Set([0x68, 0x69, 0x70, 0x71, 0x72]); // Channel/command marker bytes
     }
@@ -202,9 +202,11 @@ class MelodyPlayer {
 
     noteIdToFrequency(noteId) {
         // Map note IDs to frequencies
-        // The firmware uses ASCII-like encoding where:
-        // - 0x31-0x3C (ASCII '1'-'<'): Lower octave notes
-        // - 0x41-0x51 (ASCII 'A'-'Q'): Musical notes from A to G with sharps
+        // The firmware uses note IDs in two ranges:
+        // - 0x31-0x3C: Lower octave (12 chromatic notes from C3 to B3)
+        // - 0x41-0x51: Higher octave (17 chromatic notes from C4 to E5)
+        // Note: ASCII values don't directly correspond to note names
+        //       (e.g., 0x41='A' maps to C4, not A4)
         
         const noteMap = {
             // Lower octave (0x31-0x3C)
