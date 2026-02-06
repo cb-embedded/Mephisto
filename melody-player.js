@@ -312,8 +312,9 @@ class MelodyPlayer {
             const adjustedDuration = note.durationMs / this.speedMultiplier;
             
             // Calculate note play time and gap time for spacing
+            // Ensure gap doesn't make note duration too small or negative
             const gapDuration = adjustedDuration * this.NOTE_GAP_FACTOR;
-            const noteDuration = adjustedDuration - gapDuration;
+            const noteDuration = Math.max(adjustedDuration - gapDuration, 10); // Minimum 10ms note duration
 
             if (note.frequency > 0) {
                 // Play note with moderate amplitude, but shorter to create spacing
