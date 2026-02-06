@@ -91,7 +91,9 @@ class MelodyPlayer {
         
         // Constants for melody parsing
         this.MAX_NOTES = 100;
-        this.MAX_DURATION = 0x80;
+        this.MAX_DURATION = 0x80; // Maximum valid duration value
+        this.DURATION_TO_MS_FACTOR = 50; // Convert duration units to milliseconds
+        this.CHANNEL_CMDS = [0x68, 0x69, 0x70, 0x71, 0x72]; // Channel/command marker bytes
     }
 
     async init() {
@@ -148,7 +150,6 @@ class MelodyPlayer {
 
     parseMelody(startAddr, length) {
         const notes = [];
-        const CHANNEL_CMDS = [0x68, 0x69, 0x70, 0x71, 0x72];
         
         let i = 0;
         while (i < length && notes.length < this.MAX_NOTES) {
@@ -162,13 +163,13 @@ class MelodyPlayer {
             let noteId, duration, command;
 
             // Smart format detection: Check if b1 or b3 is a channel command
-            if (CHANNEL_CMDS.includes(b1)) {
+            if (this.CHANNEL_CMDS.includes(b1)) {
                 // Format: [Command][Note][Duration]
                 command = b1;
                 noteId = b2;
                 duration = b3;
                 i += 3;
-            } else if (CHANNEL_CMDS.includes(b3)) {
+            } else if (this.CHANNEL_CMDS.includes(b3)) {
                 // Format: [Note][Duration][Command]
                 noteId = b1;
                 duration = b2;
@@ -185,13 +186,13 @@ class MelodyPlayer {
             }
 
             // Validate and add note
-            if (duration > 0 && duration <= this.MAX_DURATION) {
+            if (duration > 0 && duration < this.MAX_DURATION) {
                 notes.push({
                     noteId: noteId,
                     duration: duration,
                     command: command,
                     frequency: this.noteIdToFrequency(noteId),
-                    durationMs: duration * 50 // Convert to milliseconds (approximate)
+                    durationMs: duration * this.DURATION_TO_MS_FACTOR
                 });
             }
         }
