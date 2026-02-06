@@ -94,6 +94,7 @@ class MelodyPlayer {
         this.MAX_DURATION = 0x80; // Valid duration range: 0x01-0x7F (0x00 and values >= 0x80 are invalid)
         this.DURATION_TO_MS_FACTOR = 10; // Convert duration units to milliseconds (reduced from 50 for faster playback)
         this.NOTE_GAP_FACTOR = 0.2; // Percentage of note duration to use as gap between notes (20% gap)
+        this.MIN_NOTE_DURATION_MS = 10; // Minimum note duration in milliseconds to ensure audibility at high speeds
         this.CHANNEL_CMDS = new Set([0x68, 0x69, 0x70, 0x71, 0x72]); // Channel/command marker bytes
     }
 
@@ -312,9 +313,9 @@ class MelodyPlayer {
             const adjustedDuration = note.durationMs / this.speedMultiplier;
             
             // Calculate note play time and gap time for spacing
-            // Ensure gap doesn't make note duration too small or negative
-            const gapDuration = adjustedDuration * this.NOTE_GAP_FACTOR;
-            const noteDuration = Math.max(adjustedDuration - gapDuration, 10); // Minimum 10ms note duration
+            // Ensure gap doesn't make note duration too small and total timing remains correct
+            const gapDuration = Math.min(adjustedDuration * this.NOTE_GAP_FACTOR, adjustedDuration - this.MIN_NOTE_DURATION_MS);
+            const noteDuration = adjustedDuration - gapDuration;
 
             if (note.frequency > 0) {
                 // Play note with moderate amplitude, but shorter to create spacing
