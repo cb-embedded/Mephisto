@@ -87,6 +87,7 @@ class MelodyPlayer {
         this.currentMelody = null;
         this.playing = false;
         this.binaryData = null;
+        this.speedMultiplier = 1.0;
     }
 
     async init() {
@@ -220,6 +221,16 @@ class MelodyPlayer {
         document.getElementById('stopButton').onclick = () => this.stop();
         document.getElementById('testNoteButton').onclick = () => this.testNote();
 
+        // Setup speed slider
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        if (speedSlider && speedValue) {
+            speedSlider.addEventListener('input', (e) => {
+                this.speedMultiplier = parseFloat(e.target.value);
+                speedValue.textContent = `${this.speedMultiplier.toFixed(1)}x`;
+            });
+        }
+
         // Update channel info periodically
         setInterval(() => this.updateChannelDisplay(), 100);
     }
@@ -248,13 +259,16 @@ class MelodyPlayer {
             if (note.command === 0x69 || note.command === 0x71) channel = 1;
             else if (note.command === 0x70 || note.command === 0x72) channel = 2;
 
+            // Calculate adjusted duration based on speed multiplier
+            const adjustedDuration = note.durationMs / this.speedMultiplier;
+
             if (note.frequency > 0) {
                 // Play note with moderate amplitude
-                this.synth.playNote(channel, note.frequency, 12, note.durationMs);
+                this.synth.playNote(channel, note.frequency, 12, adjustedDuration);
             }
 
             // Wait for note duration
-            await this.sleep(note.durationMs);
+            await this.sleep(adjustedDuration);
         }
 
         this.playing = false;
