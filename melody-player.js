@@ -88,6 +88,10 @@ class MelodyPlayer {
         this.playing = false;
         this.binaryData = null;
         this.speedMultiplier = 1.0;
+        
+        // Constants for melody parsing
+        this.MAX_NOTES = 100;
+        this.MAX_DURATION = 0x80;
     }
 
     async init() {
@@ -147,7 +151,7 @@ class MelodyPlayer {
         const CHANNEL_CMDS = [0x68, 0x69, 0x70, 0x71, 0x72];
         
         let i = 0;
-        while (i < length && notes.length < 100) {
+        while (i < length && notes.length < this.MAX_NOTES) {
             const addr = startAddr + i;
             if (addr + 2 >= this.binaryData.length) break;
 
@@ -181,7 +185,7 @@ class MelodyPlayer {
             }
 
             // Validate and add note
-            if (duration > 0 && duration <= 0x80) {
+            if (duration > 0 && duration <= this.MAX_DURATION) {
                 notes.push({
                     noteId: noteId,
                     duration: duration,
