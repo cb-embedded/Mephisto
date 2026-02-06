@@ -245,7 +245,12 @@ class MelodyPlayer {
             0x00: 0 // Rest/silence
         };
 
-        return noteMap[noteId] || 440; // Default to A4 if unknown
+        const frequency = noteMap[noteId];
+        if (frequency === undefined) {
+            console.warn(`Unknown note ID: 0x${noteId.toString(16).toUpperCase().padStart(2, '0')}`);
+            return 440; // Default to A4 if unknown
+        }
+        return frequency;
     }
 
     setupUI() {
